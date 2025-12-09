@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviator Firebase Admin</title>
+    <style>
+        body { background: #111; color: #fff; font-family: monospace; padding: 20px; }
+        .login-box { max-width: 300px; margin: 100px auto; text-align: center; }
+        input { width: 100%; padding: 10px; background: #222; border: 1px solid #444; color: white; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; background: #ff0040; color: white; border: none; cursor: pointer; font-weight: bold; width: 100%; }
+        
+        .dashboard { display: none; }
+        .user-row { background: #1e1e1e; padding: 15px; margin-bottom: 10px; border-left: 3px solid #555; display: flex; justify-content: space-between; align-items: center; }
+        .user-row.active { border-left-color: #0f0; }
+        
+        .controls { display: flex; align-items: center; }
+        .btn-toggle { font-size: 11px; padding: 5px 10px; margin-left: 5px; cursor: pointer; border: 1px solid #555; background: transparent; color: #888; width: auto; }
+        .btn-on { border-color: #0f0; color: #0f0; background: rgba(0,255,0,0.1); }
+        .btn-del { border-color: #ff0000; color: #ff0000; margin-left: 15px; font-weight: bold; }
+        .btn-del:hover { background: rgba(255, 0, 0, 0.2); }
+
+        .search-bar { width: 100%; padding: 15px; background: #000; border: 1px solid #333; color: white; margin-bottom: 20px; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-view" class="login-box">
+        <h2 style="color:#ff0040;">ADMIN LOGIN</h2>
+        <input type="password" id="admin-pass" placeholder="Password">
+        <button id="btn-admin-login">ENTER PANEL</button>
+    </div>
+
+    <div id="dash-view" class="dashboard">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2>LIVE USERS (FIREBASE)</h2>
+            <button onclick="location.reload()" style="background:#333; width: auto;">LOGOUT</button>
+        </div>
+
+        <input type="text" id="search" class="search-bar" placeholder="Search User ID or Phone...">
+        <div id="user-list"></div>
+    </div>
+
+    <!-- FIREBASE MODULE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, update, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvoTfnG6yH3qnhmMJizkmdD0yoV_bZLiw",
+            authDomain: "aviatortg-1b863.firebaseapp.com",
+            databaseURL: "https://aviatortg-1b863-default-rtdb.firebaseio.com",
+            projectId: "aviatortg-1b863",
+            storageBucket: "aviatortg-1b863.firebasestorage.app",
+            messagingSenderId: "249836198908",
+            appId: "1:249836198908:web:3c6e34caac0ce71872f079",
+            measurementId: "G-EYL67F8QG9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        let allUsers = [];
+
+        // ADMIN LOGIN
+        document.getElementById('btn-admin-login').addEventListener('click', () => {
+            if(document.getElementById('admin-pass').value === 'admin123') {
+                document.getElementById('login-view').style.display = 'none';
+                document.getElementById('dash-view').style.display = 'block';
+                startListening();
+            } else {
+                alert('Wrong Password');
+            }
+        });
+
+        // REALTIME LISTENER
+        function startListening() {
+            const usersRef = ref(db, 'users');
+            onValue(usersRef, (snapshot) => {
+                allUsers = [];
+                snapshot.forEach((childSnapshot) => {
+                    allUsers.push(childSnapshot.val());
+                });
+                render();
+            });
+        }
+
+        // RENDER UI
+        function render() {
+            const q = document.getElementById('search').value.toLowerCase();
+            const list = document.getElementById('user-list');
+            list.innerHTML = "";
+
+            allUsers.forEach(u => {
+                if((u.uid && u.uid.includes(q)) || (u.phone && u.phone.includes(q))) {
+                    const div = document.createElement('div');
+                    div.className = `user-row ${u.sig || u.odd ? 'active' : ''}`;
+                    div.innerHTML = `
+                        <div>
+                            <strong style="color:#fff; font-size:16px;">${u.uid}</strong><br>
+                            <span style="color:#888; font-size:12px;">Pass: ${u.pass} | Phone: ${u.phone}</span>
+                        </div>
+                        <div class="controls">
+                            <button class="btn-toggle ${u.sig?'btn-on':''}" id="btn-sig-${u.uid}">SIG: ${u.sig?'ON':'OFF'}</button>
+                            <button class="btn-toggle ${u.odd?'btn-on':''}" id="btn-odd-${u.uid}">ODD: ${u.odd?'ON':'OFF'}</button>
+                            <button class="btn-toggle btn-del" id="btn-del-${u.uid}">DEL</button>
+                        </div>
+                    `;
+                    list.appendChild(div);
+
+                    // Add Listeners
+                    document.getElementById(`btn-sig-${u.uid}`).addEventListener('click', () => toggle(u.uid, 'sig', u.sig));
+                    document.getElementById(`btn-odd-${u.uid}`).addEventListener('click', () => toggle(u.uid, 'odd', u.odd));
+                    document.getElementById(`btn-del-${u.uid}`).addEventListener('click', () => delUser(u.uid));
+                }
+            });
+            if(list.innerHTML === "") list.innerHTML = '<p style="text-align:center; color:#555;">No Users Found</p>';
+        }
+
+        document.getElementById('search').addEventListener('keyup', render);
+
+        // ACTIONS
+        function toggle(uid, type, currentVal) {
+            update(ref(db, 'users/' + uid), { [type]: !currentVal });
+        }
+
+        function delUser(uid) {
+            if(confirm('Delete user ' + uid + '?')) {
+                remove(ref(db, 'users/' + uid));
+            }
+        }
+    </script>
+</body>
+</html>
