@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,12 +13,16 @@
         
         .dashboard { display: none; }
         .user-row { background: #1e1e1e; padding: 15px; margin-bottom: 10px; border-left: 3px solid #555; display: flex; justify-content: space-between; align-items: center; }
+        /* Highlight row if ANY permission is ON */
         .user-row.active { border-left-color: #0f0; }
         
-        .controls { display: flex; align-items: center; }
-        .btn-toggle { font-size: 11px; padding: 5px 10px; margin-left: 5px; cursor: pointer; border: 1px solid #555; background: transparent; color: #888; width: auto; }
+        .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+        .btn-toggle { font-size: 11px; padding: 5px 8px; cursor: pointer; border: 1px solid #555; background: transparent; color: #888; width: auto; }
+        
+        /* Green style for ON buttons */
         .btn-on { border-color: #0f0; color: #0f0; background: rgba(0,255,0,0.1); }
-        .btn-del { border-color: #ff0000; color: #ff0000; margin-left: 15px; font-weight: bold; }
+        
+        .btn-del { border-color: #ff0000; color: #ff0000; font-weight: bold; margin-left: 10px; }
         .btn-del:hover { background: rgba(255, 0, 0, 0.2); }
 
         .search-bar { width: 100%; padding: 15px; background: #000; border: 1px solid #333; color: white; margin-bottom: 20px; font-size: 16px; }
@@ -25,12 +30,14 @@
 </head>
 <body>
 
+    <!-- LOGIN SCREEN -->
     <div id="login-view" class="login-box">
         <h2 style="color:#ff0040;">ADMIN LOGIN</h2>
         <input type="password" id="admin-pass" placeholder="Password">
         <button id="btn-admin-login">ENTER PANEL</button>
     </div>
 
+    <!-- DASHBOARD SCREEN -->
     <div id="dash-view" class="dashboard">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <h2>LIVE USERS (FIREBASE)</h2>
@@ -41,11 +48,11 @@
         <div id="user-list"></div>
     </div>
 
-    <!-- FIREBASE MODULE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, update, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // Firebase Config (Must match User App)
         const firebaseConfig = {
             apiKey: "AIzaSyDvoTfnG6yH3qnhmMJizkmdD0yoV_bZLiw",
             authDomain: "aviatortg-1b863.firebaseapp.com",
@@ -61,8 +68,9 @@
         const db = getDatabase(app);
         let allUsers = [];
 
-        // ADMIN LOGIN
+        // 1. LOGIN LOGIC
         document.getElementById('btn-admin-login').addEventListener('click', () => {
+            // Admin Password: admin123
             if(document.getElementById('admin-pass').value === 'admin123') {
                 document.getElementById('login-view').style.display = 'none';
                 document.getElementById('dash-view').style.display = 'block';
@@ -72,7 +80,7 @@
             }
         });
 
-        // REALTIME LISTENER
+        // 2. LISTEN TO DATABASE
         function startListening() {
             const usersRef = ref(db, 'users');
             onValue(usersRef, (snapshot) => {
@@ -84,47 +92,72 @@
             });
         }
 
-        // RENDER UI
+        // 3. RENDER USERS LIST
         function render() {
             const q = document.getElementById('search').value.toLowerCase();
             const list = document.getElementById('user-list');
             list.innerHTML = "";
 
             allUsers.forEach(u => {
+                // Filter by Search
                 if((u.uid && u.uid.includes(q)) || (u.phone && u.phone.includes(q))) {
                     const div = document.createElement('div');
-                    div.className = `user-row ${u.sig || u.odd ? 'active' : ''}`;
+                    // Add 'active' class if any service is enabled
+                    div.className = `user-row ${u.sig || u.odd || u.starz ? 'active' : ''}`;
+                    
                     div.innerHTML = `
                         <div>
                             <strong style="color:#fff; font-size:16px;">${u.uid}</strong><br>
                             <span style="color:#888; font-size:12px;">Pass: ${u.pass} | Phone: ${u.phone}</span>
                         </div>
                         <div class="controls">
-                            <button class="btn-toggle ${u.sig?'btn-on':''}" id="btn-sig-${u.uid}">SIG: ${u.sig?'ON':'OFF'}</button>
-                            <button class="btn-toggle ${u.odd?'btn-on':''}" id="btn-odd-${u.uid}">ODD: ${u.odd?'ON':'OFF'}</button>
+                            <!-- SIG TOGGLE -->
+                            <button class="btn-toggle ${u.sig?'btn-on':''}" id="btn-sig-${u.uid}">
+                                SIG: ${u.sig?'ON':'OFF'}
+                            </button>
+                            
+                            <!-- ODD TOGGLE -->
+                            <button class="btn-toggle ${u.odd?'btn-on':''}" id="btn-odd-${u.uid}">
+                                ODD: ${u.odd?'ON':'OFF'}
+                            </button>
+                            
+                            <!-- 888 STARZ TOGGLE (New) -->
+                            <button class="btn-toggle ${u.starz?'btn-on':''}" id="btn-starz-${u.uid}">
+                                888: ${u.starz?'ON':'OFF'}
+                            </button>
+
+                            <!-- DELETE BUTTON -->
                             <button class="btn-toggle btn-del" id="btn-del-${u.uid}">DEL</button>
                         </div>
                     `;
                     list.appendChild(div);
 
-                    // Add Listeners
+                    // Add Event Listeners
                     document.getElementById(`btn-sig-${u.uid}`).addEventListener('click', () => toggle(u.uid, 'sig', u.sig));
                     document.getElementById(`btn-odd-${u.uid}`).addEventListener('click', () => toggle(u.uid, 'odd', u.odd));
+                    document.getElementById(`btn-starz-${u.uid}`).addEventListener('click', () => toggle(u.uid, 'starz', u.starz)); // New Listener
                     document.getElementById(`btn-del-${u.uid}`).addEventListener('click', () => delUser(u.uid));
                 }
             });
-            if(list.innerHTML === "") list.innerHTML = '<p style="text-align:center; color:#555;">No Users Found</p>';
+
+            if(list.innerHTML === "") {
+                list.innerHTML = '<p style="text-align:center; color:#555;">No Users Found</p>';
+            }
         }
 
+        // Search Listener
         document.getElementById('search').addEventListener('keyup', render);
 
-        // ACTIONS
+        // 4. DATABASE ACTIONS
         function toggle(uid, type, currentVal) {
-            update(ref(db, 'users/' + uid), { [type]: !currentVal });
+            // Update the specific permission in Firebase
+            update(ref(db, 'users/' + uid), {
+                [type]: !currentVal
+            });
         }
 
         function delUser(uid) {
-            if(confirm('Delete user ' + uid + '?')) {
+            if(confirm('Are you sure you want to delete User ID: ' + uid + '?')) {
                 remove(ref(db, 'users/' + uid));
             }
         }
